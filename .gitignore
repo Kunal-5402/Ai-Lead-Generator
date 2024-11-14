@@ -1,0 +1,11 @@
+# Ignore all notebook
+*.ipynb
+
+# Ignore all wav
+*.wav
+
+#Ignore enviornment
+.env
+
+#Ignore pycache
+/__pycache__
