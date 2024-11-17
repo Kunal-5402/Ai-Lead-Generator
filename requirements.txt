@@ -2,3 +2,4 @@ openai
 streamlit-audiorec
 openai-whisper
 python-dotenv
+pillow

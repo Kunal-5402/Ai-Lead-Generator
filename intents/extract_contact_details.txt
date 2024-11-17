@@ -7,7 +7,7 @@ Extract the following entities as JSON:
     "phone_number": string (digits only no hyphen, add country code with "+" if present),
     "email": string (proper email format),
     "company": string,
-    "designation": string,
+    "designation": string #role/job profile/job position of the person,
     "experience": int,
     "interest": string
 }```

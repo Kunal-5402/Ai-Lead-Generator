@@ -1,49 +1,47 @@
-from llm import LLM
-from transcribe import speech_to_text
-
 import re
 import json
+from PIL import Image
 import streamlit as st
 from st_audiorec import st_audiorec
 
+import vlm
+from llm import LLM
+from transcribe import speech_to_text
+from text_processing import extract_json
 
-def extract_json(response: str):
+    
+def intent_detection(user_query: str):
     try:
-        pattern = r'```json(.*?)```'
-        match = re.search(pattern, response, flags=re.DOTALL)
-        if match:
-            json_data = match.group(1)
-            data = json.loads(json_data)
-            return data
-        else:
-            raise ValueError("No JSON code block found in the response.")
+        with open("assets/function_calling_prompt.txt","r") as file:
+            system_prompt = file.read()
+        ans = llm.generate(user_query=user_query,system_prompt=system_prompt)
+        data = extract_json(ans)
+        return data
     except Exception as e:
-        raise RuntimeError(f"An error occurred during extracting JSON: {e}")
+        raise RuntimeError(f"Problem in Intent Detection: {e}")
 
-def transcribe_and_extract():
-    #transcribe
-    text = transcriber.transcribe(file_name)
-    print(text)
-
-    #prompts
-    with open("assets/system_prompt.txt","r") as file:
+def intent_invoking(user_query: str, file_name: str):
+    with open(f"intents/{file_name}.txt","r") as file:
         system_prompt = file.read()
-    print(system_prompt)
-    user_query = f"data: {text['text']}\nExtract the entities from the data? Reply in json format."
-    #generate response
+
     ans = llm.generate(user_query=user_query,system_prompt=system_prompt)
-    print(ans)
     data = extract_json(ans)
-    return data, text
+    return data
 
 
 def main(wav_audio_data):
     if wav_audio_data is not None:
+        text = transcriber.transcribe(file_name)
+        tool = intent_detection(user_query=text['text'])
+        intent = tool['intent']
+        
+        print(text['text'])
+        print(intent)
 
-        data, text = transcribe_and_extract()
 
         if not text['text'].strip():
             text['text'] = "No audio was provided!"
+
         if "messages" not in st.session_state:
             st.session_state.messages = []
 
@@ -57,10 +55,56 @@ def main(wav_audio_data):
                 with st.chat_message("assistant"):
                     st.write(message['content'])
 
+        if intent == "extract_contact_details":
+            response = intent_invoking(user_query=text['text'] ,file_name=intent)
+            data  = response
+            st.session_state.messages.append({'role': 'assistant', 'content': data})
+            with st.chat_message("assistant"):
+                st.write(data)
 
-        st.session_state.messages.append({'role': 'assistant', 'content': data})
-        with st.chat_message("assistant"):
-            st.write(data)
+        elif intent == "create_shopping_list":
+            response = intent_invoking(user_query=text['text'] ,file_name=intent)
+            data = {}
+            for i, item in enumerate(response['items']):
+                data[i+1] = item
+            st.session_state.messages.append({'role': 'assistant', 'content': data})
+            with st.chat_message("assistant"):
+                st.write(data)
+
+        elif intent == "create_todo_list":
+            response = intent_invoking(user_query=text['text'] ,file_name=intent)
+            data = {}
+            for i, task in enumerate(response['tasks']):
+                data[i+1] = task
+            st.session_state.messages.append({'role': 'assistant', 'content': data})
+            with st.chat_message("assistant"):
+                st.write(data)
+
+        elif intent == "turn_on_camera":
+            picture = st.camera_input(label="Take a Photo")
+
+            if picture is not None:
+                image = Image.open(picture)
+                image.save("captured_photo.jpg")
+                
+                with open("intents/turn_on_camera.txt", "r") as file:
+                    system_prompt = file.read()
+
+                llm = vlm.LLM()
+                ans = llm.generate(image_path="captured_photo.jpg", system_prompt=system_prompt)
+
+                print(ans)
+
+                data = extract_json(ans)
+                st.session_state.messages.append({'role': 'assistant', 'content': data})
+                with st.chat_message("assistant"):
+                    st.write(data)
+
+        else:
+            data  = "Sorry! I can't help with your query"
+            st.session_state.messages.append({'role': 'assistant', 'content': data})
+            with st.chat_message("assistant"):
+                st.write(data)
 
 if __name__ == "__main__":
     st.title("AI Lead Generator")

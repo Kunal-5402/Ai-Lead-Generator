@@ -2,7 +2,7 @@ import os
 import openai
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv()           
 
 class LLM:
     def __init__(self):
